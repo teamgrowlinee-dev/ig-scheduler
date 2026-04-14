@@ -2,6 +2,14 @@ import cron from "node-cron";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
+import { createServer } from "http";
+
+// Lihtne HTTP server et Render ei spinniks alla
+const PORT = process.env.PORT || 3000;
+createServer((req, res) => {
+  res.writeHead(200);
+  res.end("ig-scheduler running");
+}).listen(PORT, () => console.log(`HTTP server port ${PORT}`));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const posts = JSON.parse(readFileSync(resolve(__dirname, "posts.json"), "utf-8"));
