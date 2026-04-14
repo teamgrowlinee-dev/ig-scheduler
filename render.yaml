@@ -1,0 +1,11 @@
+services:
+  - type: worker
+    name: ig-scheduler
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: META_PAGE_TOKEN
+        sync: false
+      - key: IG_USER_ID
+        value: "17841446547692404"
