@@ -1,9 +1,10 @@
 services:
-  - type: worker
+  - type: web
     name: ig-scheduler
     runtime: node
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /
     envVars:
       - key: META_PAGE_TOKEN
         sync: false
