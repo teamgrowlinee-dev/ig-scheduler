@@ -12,7 +12,10 @@ createServer((req, res) => {
 }).listen(PORT, "0.0.0.0", () => console.log(`HTTP server listening on 0.0.0.0:${PORT}`));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const posts = JSON.parse(readFileSync(resolve(__dirname, "posts.json"), "utf-8"));
+const posts = [
+  ...JSON.parse(readFileSync(resolve(__dirname, "posts.json"), "utf-8")),
+  ...JSON.parse(readFileSync(resolve(__dirname, "posts_videos.json"), "utf-8")),
+];
 
 const IG_ID = process.env.IG_USER_ID;
 const PAGE_TOKEN = process.env.META_PAGE_TOKEN;
@@ -44,17 +47,53 @@ async function checkAndPost() {
     if (now >= post.ts && now <= post.ts + window) {
       console.log(`[${new Date().toISOString()}] Postitan: ${post.id}`);
       try {
-        // 1. Loo meedia konteiner
-        const container = await graphPost(`/${IG_ID}/media`, {
-          image_url: post.image_url,
-          caption: post.caption,
-        });
-        console.log(`  Konteiner: ${container.id}`);
+        let container;
+        if (post.image_urls) {
+          // Carousel
+          const childIds = [];
+          for (const url of post.image_urls) {
+            const c = await graphPost(`/${IG_ID}/media`, {
+              image_url: url,
+              is_carousel_item: "true",
+            });
+            childIds.push(c.id);
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+          container = await graphPost(`/${IG_ID}/media`, {
+            media_type: "CAROUSEL",
+            children: childIds.join(","),
+            caption: post.caption,
+          });
+          console.log(`  Konteiner (carousel ${childIds.length} slaidi): ${container.id}`);
+          await new Promise((r) => setTimeout(r, 5000));
+        } else if (post.video_url) {
+          // Reels video
+          container = await graphPost(`/${IG_ID}/media`, {
+            media_type: "REELS",
+            video_url: post.video_url,
+            caption: post.caption,
+          });
+          console.log(`  Konteiner (video): ${container.id}`);
+          // Oota kuni video töödeldud (max 3 min, poll iga 10s)
+          for (let i = 0; i < 18; i++) {
+            await new Promise((r) => setTimeout(r, 10000));
+            const params = new URLSearchParams({ fields: "status_code", access_token: PAGE_TOKEN });
+            const r = await fetch(`https://graph.facebook.com/v25.0/${container.id}?${params}`);
+            const s = await r.json();
+            console.log(`  Status: ${s.status_code}`);
+            if (s.status_code === "FINISHED") break;
+            if (s.status_code === "ERROR") throw new Error("Video töötlemine ebaõnnestus");
+          }
+        } else {
+          // Pilt
+          container = await graphPost(`/${IG_ID}/media`, {
+            image_url: post.image_url,
+            caption: post.caption,
+          });
+          console.log(`  Konteiner (pilt): ${container.id}`);
+          await new Promise((r) => setTimeout(r, 5000));
+        }
 
-        // 2. Oota 5 sekundit
-        await new Promise((r) => setTimeout(r, 5000));
-
-        // 3. Publitseeri
         const pub = await graphPost(`/${IG_ID}/media_publish`, {
           creation_id: container.id,
         });
